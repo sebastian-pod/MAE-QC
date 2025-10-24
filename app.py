@@ -6,7 +6,7 @@ import logging
 from flask import Flask, Response, render_template, jsonify, request
 import cv2
 
-from camera import CameraStream
+from camera_rpicam import CameraStream
 from processor import measure_holes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -19,7 +19,14 @@ JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "80"))
 app = Flask(__name__)
 
 # Start camera
-cam = CameraStream(width=1280, height=720, fps=FPS_STREAM)
+cam = CameraStream(
+    width=1280,
+    height=720,
+    fps=20,           # encoder FPS
+    quality=80,       # MJPEG quality (1-100)
+    extra_args=["--nopreview"],   # add rpicam flags here if needed
+    max_decode_fps=10 # limit JPEG→BGR decode load
+)
 cam.start()
 
 # Shared state
