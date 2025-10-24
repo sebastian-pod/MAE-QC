@@ -3,10 +3,10 @@ import os
 import time
 import threading
 import logging
-from flask import Flask, Response, render_template, jsonify
+from flask import Flask, Response, render_template, jsonify, request
 import cv2
 
-from camera import CameraStream
+from camera_spoof import CameraStream
 from processor import measure_holes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -98,6 +98,22 @@ def metrics():
 @app.route("/health")
 def health():
     return jsonify(status="ok")
+
+@app.route("/focus", methods=["POST"])
+def focus():
+    """
+    Adjusts the Picamera2 lens position via AJAX call from the Focus button.
+    """
+    try:
+        # Only valid if using Picamera2
+        if hasattr(cam.impl, "picam2"):
+            lens_position = float(request.args.get("pos", 11.5))
+            cam.impl.picam2.set_controls({"LensPosition": lens_position})
+            return jsonify({"status": "ok", "lens_position": lens_position})
+        else:
+            return jsonify({"status": "error", "message": "No Picamera2 found"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     host = os.getenv("FLASK_HOST", "0.0.0.0")

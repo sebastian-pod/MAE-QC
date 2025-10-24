@@ -1,0 +1,34 @@
+{
+	"enableStatusBarItem": true,
+	"enableQuickPick": true,
+	"uploadOnSave": true,
+	"autoDelete": true,
+	"checkGitignore": false,
+	"activeTargets": [
+		"Raspberry Pi"
+	],
+	"concurrency": 5,
+	"ignore": [
+		".git/**/*",
+		".vscode/**/*",
+		".cropped_output/",
+		".image_test/",
+		".test_files/*",
+		".images/*",
+		".error/*"
+	],
+	"include": [],
+	"targets": [
+		{
+			"name": "Raspberry Pi",
+			"type": "sftp",
+			"host": "10.133.172.105",
+			"port": 22,
+			"user": "sebastian",
+			"password": "raspberry",
+			"dir": "/home/sebastian",
+			"privateKey": null,
+			"passphrase": null
+		}
+	]
+}

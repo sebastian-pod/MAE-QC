@@ -20,3 +20,20 @@ async function refresh() {
   }
 }
 refresh();
+
+// ---- Focus control ----
+const focusBtn = document.getElementById('focusBtn');
+const lensInput = document.getElementById('lensPos');
+
+if (focusBtn) {
+  focusBtn.addEventListener('click', async () => {
+    const pos = parseFloat(lensInput.value || '11.5');
+    try {
+      const res = await fetch(`/focus?pos=${pos}`, { method: 'POST' });
+      const data = await res.json();
+      alert(data.status === 'ok' ? `Focus set to ${pos}` : `Error: ${data.message}`);
+    } catch (e) {
+      alert('Focus request failed');
+    }
+  });
+}
