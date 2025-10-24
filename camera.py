@@ -7,20 +7,26 @@ import cv2
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 class _PiCam2Wrapper:
-    """Picamera2 wrapper; returns frames as BGR for OpenCV."""
+    """Picamera2 wrapper; returns frames as BGR for OpenCV. No libcamera.Transform needed."""
     def __init__(self, width=1280, height=720, fps=30):
-        from picamera2 import Picamera2, Preview
-        from libcamera import Transform
+        from picamera2 import Picamera2  # no libcamera import
 
         self.picam2 = Picamera2()
+        # Basic RGB888 stream; omit transform so we don't depend on libcamera.Transform
         config = self.picam2.create_video_configuration(
-            main={"size": (width, height), "format": "RGB888"},
-            transform=Transform(vflip=False, hflip=False)
+            main={"size": (width, height), "format": "RGB888"}
         )
         self.picam2.configure(config)
+
+        # Optional: if your sensor supports these controls, you can flip via controls
+        # (uncomment if you need flips and your camera exposes them)
+        # try:
+        #     self.picam2.set_controls({"HorizontalFlip": False, "VerticalFlip": False})
+        # except Exception:
+        #     pass
+
         self.picam2.start()
-        # Let auto-exposure settle
-        time.sleep(0.5)
+        time.sleep(0.5)  # let AE settle
 
     def read(self):
         frame_rgb = self.picam2.capture_array()  # RGB
@@ -76,7 +82,7 @@ class CameraStream:
         self._thread = None
 
     def _init_impl(self):
-        # Prefer Picamera2
+        # Prefer Picamera2 (now without libcamera.Transform dependency)
         try:
             self.impl = _PiCam2Wrapper(self.width, self.height, self.fps)
             logging.info("CameraStream: using Picamera2")
@@ -117,10 +123,9 @@ class CameraStream:
                 except Exception as e2:
                     logging.error(f"Re-init error: {e2}")
                     time.sleep(self.reconnect_delay)
-            # pace
             elapsed = time.time() - t0
             if elapsed < dt:
-                time.sleep(dt - elapsed)
+                time.sleep(max(0, dt - elapsed))
 
     def get_frame(self):
         with self._lock:

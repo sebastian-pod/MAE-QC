@@ -6,7 +6,7 @@ import logging
 from flask import Flask, Response, render_template, jsonify, request
 import cv2
 
-from camera_spoof import CameraStream
+from camera import CameraStream
 from processor import measure_holes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
