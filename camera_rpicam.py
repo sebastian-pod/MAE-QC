@@ -55,7 +55,47 @@ class CameraStream:
         self._buf = bytearray()
         self._lock = threading.Lock()
         self._frame_bgr = None
+        self._focus_args = []  # holds current focus-related flags
 
+    # --- Add this helper to build rpicam-vid command ---
+    def _rpicam_cmd(self):
+        args = [
+            self.rpicam_bin, "--codec", "mjpeg",
+            "--width", str(self.width), "--height", str(self.height),
+            "--framerate", str(self.fps), "--quality", str(self.quality),
+            "--timeout", "0", "-o", "-"
+        ]
+        # focus options first (so they’re easy to override)
+        args.extend(self._focus_args)
+        # user-specified extras next
+        args.extend(self.extra_args or [])
+        return args
+
+    # --- Add a public API to set manual focus (diopters) ---
+    def set_manual_focus(self, lens_position):
+        """
+        Set manual focus via --autofocus-mode manual --lens-position <value>.
+        Value is diopters (0 = infinity).
+        """
+        self._focus_args = ["--autofocus-mode", "manual", "--lens-position", str(float(lens_position))]
+        # restart rpicam-vid to apply new controls
+        self._stop_proc()  # reader loop will respawn with new args
+
+# --- (Optional) Add auto/continuous focus helpers ---
+    def set_auto_focus(self, af_range="normal", af_speed="normal"):
+        """
+        Enable AF; optional range: normal|macro|full; speed: normal|fast.
+        """
+        self._focus_args = ["--autofocus-mode", "auto",
+                            "--autofocus-range", af_range,
+                            "--autofocus-speed", af_speed]
+        self._stop_proc()
+
+    def set_continuous_focus(self, af_range="normal", af_speed="normal"):
+        self._focus_args = ["--autofocus-mode", "continuous",
+                            "--autofocus-range", af_range,
+                            "--autofocus-speed", af_speed]
+        self._stop_proc()
     # ----------------- process management -----------------
 
     def _rpicam_cmd(self):

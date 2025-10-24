@@ -6,26 +6,32 @@ import logging
 from flask import Flask, Response, render_template, jsonify, request
 import cv2
 
-from camera_rpicam import CameraStream
+from camera import CameraStream
 from processor import measure_holes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 # Tunables
-FPS_STREAM = int(os.getenv("STREAM_FPS", "15"))      # MJPEG stream FPS
-FPS_ANALYZE = int(os.getenv("ANALYZE_FPS", "5"))     # analysis rate to save CPU
-JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "80"))
+FPS_STREAM = int(os.getenv("STREAM_FPS", "10"))      # MJPEG stream FPS
+FPS_ANALYZE = int(os.getenv("ANALYZE_FPS", "1"))     # analysis rate to save CPU
+JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "20"))
 
 app = Flask(__name__)
 
 # Start camera
+# cam = CameraStream(
+#     width=1280,
+#     height=720,
+#     fps=1,           # encoder FPS
+#     quality=100,       # MJPEG quality (1-100)
+#     extra_args=["--nopreview"],   # add rpicam flags here if needed
+#     max_decode_fps=1 # limit JPEG→BGR decode load
+# )
+
 cam = CameraStream(
     width=1280,
     height=720,
-    fps=20,           # encoder FPS
-    quality=80,       # MJPEG quality (1-100)
-    extra_args=["--nopreview"],   # add rpicam flags here if needed
-    max_decode_fps=10 # limit JPEG→BGR decode load
+    fps=20
 )
 cam.start()
 
@@ -109,16 +115,28 @@ def health():
 @app.route("/focus", methods=["POST"])
 def focus():
     """
-    Adjusts the Picamera2 lens position via AJAX call from the Focus button.
+    Adjust focus for rpicam-vid backend.
+    Use ?mode=manual&pos=5.0  (diopters) or ?mode=auto / ?mode=continuous
+    Optional: &range=normal|macro|full  &speed=normal|fast
     """
     try:
-        # Only valid if using Picamera2
-        if hasattr(cam.impl, "picam2"):
-            lens_position = float(request.args.get("pos", 11.5))
-            cam.impl.picam2.set_controls({"LensPosition": lens_position})
-            return jsonify({"status": "ok", "lens_position": lens_position})
+        mode = request.args.get("mode", "manual").lower()
+        if mode == "manual":
+            pos = float(request.args.get("pos", "0"))  # 0 = infinity
+            cam.set_manual_focus(pos)
+            return jsonify({"status": "ok", "mode": "manual", "lens_position": pos})
+        elif mode == "auto":
+            af_range = request.args.get("range", "normal")
+            af_speed = request.args.get("speed", "normal")
+            cam.set_auto_focus(af_range=af_range, af_speed=af_speed)
+            return jsonify({"status": "ok", "mode": "auto", "range": af_range, "speed": af_speed})
+        elif mode == "continuous":
+            af_range = request.args.get("range", "normal")
+            af_speed = request.args.get("speed", "normal")
+            cam.set_continuous_focus(af_range=af_range, af_speed=af_speed)
+            return jsonify({"status": "ok", "mode": "continuous", "range": af_range, "speed": af_speed})
         else:
-            return jsonify({"status": "error", "message": "No Picamera2 found"}), 400
+            return jsonify({"status": "error", "message": "Invalid mode"}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
