@@ -1,47 +1,115 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Pi Camera - Live Hole Measurement</title>
+  <title>Pi Camera - Hole Measurement</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background:#0e0f10; color:#e7e9ea; }
-    .wrap { max-width: 1100px; margin: 32px auto; padding: 0 16px; }
-    .card { background:#17181a; border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35); }
-    .row { display:grid; grid-template-columns: 2fr 1fr; gap:16px; }
-    img { width: 100%; border-radius: 12px; background:#000; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #2a2d31; }
-    .muted { color:#9aa0a6; font-size: 12px; }
-    .controls { margin-bottom: 12px; display:flex; gap:8px; align-items:center; }
-    input[type=number] { width:80px; border-radius:6px; border:1px solid #444; padding:4px; background:#111; color:#eee; }
-    button { padding:6px 12px; border:none; border-radius:6px; background:#20c997; color:#fff; cursor:pointer; }
-    button:hover { background:#17a589; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0;
+      background: #0e0f10;
+      color: #e7e9ea;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+    .card {
+      background: #17181a;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+    }
+    img {
+      width: 100%;
+      border-radius: 12px;
+      background: #000;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid #2a2d31;
+    }
+    .muted {
+      color: #9aa0a6;
+      font-size: 12px;
+    }
+    .controls {
+      margin-bottom: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    input[type=number] {
+      width: 80px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      padding: 4px;
+      background: #111;
+      color: #eee;
+    }
+    button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      background: #20c997;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #17a589;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h2>Live Camera – Hole Diameter Measurement</h2>
     <div class="row">
+      <!-- Left panel: camera feed -->
       <div class="card">
         <div class="controls">
+          <label for="lensPos">Focus:</label>
           <input id="lensPos" type="number" value="11.5" step="0.1" min="0" max="20">
           <button id="focusBtn">Set Focus</button>
+          <button id="snapBtn">Take Picture</button>
+          <button id="resetBtn">Reset</button>
         </div>
         <img id="stream" src="/video" alt="Live stream"/>
         <div class="muted">Overlay shows detected holes and diameter (mm).</div>
       </div>
+
+      <!-- Right panel: measurements -->
       <div class="card">
         <h3>Measurements</h3>
         <div class="muted">Scale: 10 px = 1 mm</div>
         <table id="table">
-          <thead><tr><th>#</th><th>Diameter (mm)</th></tr></thead>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Diameter (mm)</th>
+            </tr>
+          </thead>
           <tbody></tbody>
         </table>
         <div class="muted" id="meta"></div>
       </div>
     </div>
   </div>
+
+  <!-- Main JS -->
   <script src="/static/main.js"></script>
 </body>
 </html>

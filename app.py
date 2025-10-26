@@ -5,6 +5,7 @@ import threading
 import logging
 from flask import Flask, Response, render_template, jsonify, request
 import cv2
+import base64
 
 from camera import CameraStream
 from processor import measure_holes
@@ -28,11 +29,8 @@ app = Flask(__name__)
 #     max_decode_fps=1 # limit JPEG→BGR decode load
 # )
 
-cam = CameraStream(
-    width=1280,
-    height=720,
-    fps=20
-)
+cam = CameraStream(width=1920,height=1080,fps=20)
+
 cam.start()
 
 # Shared state
@@ -67,15 +65,14 @@ def analyzer_loop():
     while True:
         frame = cam.get_frame()
         if frame is not None:
-            holes, annotated = measure_holes(frame)
-            # Update metrics
+            holes, annotated = measure_holes(frame)  # updated measure_holes
             with _state_lock:
                 last_metrics = {
                     "count": len(holes),
                     "holes_mm": [round(h.diameter_mm, 3) for h in holes],
                     "timestamp": time.time(),
                 }
-                # Stream annotated frame if available
+                # Always stream annotated frame
                 try:
                     last_jpeg = _encode_jpeg(annotated)
                 except Exception as e:
@@ -83,12 +80,21 @@ def analyzer_loop():
         time.sleep(dt)
 
 # Start background workers
-threading.Thread(target=producer_loop, daemon=True).start()
+#threading.Thread(target=producer_loop, daemon=True).start()
 threading.Thread(target=analyzer_loop, daemon=True).start()
 
 @app.route("/")
 def index():
     return render_template("index.html")
+
+@app.route("/focus", methods=["POST"])
+def focus():
+    pos = float(request.args.get("pos", 11.5))
+    try:
+        cam.impl.set_focus(pos)  # call the new method
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 @app.route("/video")
 def video():
@@ -112,33 +118,24 @@ def metrics():
 def health():
     return jsonify(status="ok")
 
-@app.route("/focus", methods=["POST"])
-def focus():
-    """
-    Adjust focus for rpicam-vid backend.
-    Use ?mode=manual&pos=5.0  (diopters) or ?mode=auto / ?mode=continuous
-    Optional: &range=normal|macro|full  &speed=normal|fast
-    """
-    try:
-        mode = request.args.get("mode", "manual").lower()
-        if mode == "manual":
-            pos = float(request.args.get("pos", "0"))  # 0 = infinity
-            cam.set_manual_focus(pos)
-            return jsonify({"status": "ok", "mode": "manual", "lens_position": pos})
-        elif mode == "auto":
-            af_range = request.args.get("range", "normal")
-            af_speed = request.args.get("speed", "normal")
-            cam.set_auto_focus(af_range=af_range, af_speed=af_speed)
-            return jsonify({"status": "ok", "mode": "auto", "range": af_range, "speed": af_speed})
-        elif mode == "continuous":
-            af_range = request.args.get("range", "normal")
-            af_speed = request.args.get("speed", "normal")
-            cam.set_continuous_focus(af_range=af_range, af_speed=af_speed)
-            return jsonify({"status": "ok", "mode": "continuous", "range": af_range, "speed": af_speed})
-        else:
-            return jsonify({"status": "error", "message": "Invalid mode"}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+@app.route("/video_snapshot")
+def video_snapshot():
+    frame = cam.get_frame()
+    if frame is None:
+        return jsonify({"error": "No frame available"}), 500
+
+    # Measure holes and get annotated frame
+    holes, annotated = measure_holes(frame)
+
+    # Encode annotated frame to JPEG, then base64
+    _, buffer = cv2.imencode(".jpg", annotated)
+    img_b64 = base64.b64encode(buffer).decode("utf-8")
+
+    return jsonify({
+        "image_base64": img_b64,
+        "holes_mm": [round(h.diameter_mm, 2) for h in holes],
+        "timestamp": int(time.time())
+    })
 
 if __name__ == "__main__":
     host = os.getenv("FLASK_HOST", "0.0.0.0")

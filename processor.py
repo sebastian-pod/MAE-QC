@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from dataclasses import dataclass
 
-PIXELS_PER_MM = 10.0  # your scale: 10 px == 1 mm
+PIXELS_PER_MM = 13.75 / 0.701  # your scale: 10 px = 1 mm
 
 @dataclass
 class Hole:
@@ -12,26 +12,41 @@ class Hole:
     diameter_mm: float
     diameter_px: float
 
-def measure_holes(frame_bgr, min_d_mm=2, max_d_mm=100, circularity_thresh=0.7):
+def zoom_frame(frame, zoom_factor=2.0):
     """
-    Returns (holes, annotated_frame)
-    - holes: list[Hole]
-    - annotated_frame: BGR image with circles and labels
+    Zoom in on the center of the frame by zoom_factor.
+    zoom_factor > 1 zooms in.
     """
+    h, w = frame.shape[:2]
+    new_w, new_h = int(w / zoom_factor), int(h / zoom_factor)
+    x0, y0 = (w - new_w) // 2, (h - new_h) // 2
+    cropped = frame[y0:y0+new_h, x0:x0+new_w]
+    zoomed = cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
+    return zoomed
+
+def measure_holes(frame_bgr, min_d_mm=5, max_d_mm=100, circularity_thresh=0.7):
+    """
+    Detect large holes in aluminum part with white paper background.
+    Uses adaptive threshold to handle reflections and uneven lighting.
+    """
+    # Zoom in before processing
+    frame_bgr = zoom_frame(frame_bgr, zoom_factor=1)  # adjust factor as needed
+
     img = frame_bgr.copy()
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Boost contrast & suppress noise
-    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    gray = cv2.GaussianBlur(gray, (7, 7), 0)  # blur to remove reflections
 
-    # Adaptive threshold tends to work well on matte metal plates
-    thr = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                cv2.THRESH_BINARY_INV, 35, 5)
+    # Adaptive threshold (white holes -> black background)
+    thr = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 51, 5
+    )
 
-    # Morph open to clean specks
-    kernel = np.ones((3, 3), np.uint8)
-    thr = cv2.morphologyEx(thr, cv2.MORPH_OPEN, kernel, iterations=1)
+    # Morph to remove small noise
+    kernel = np.ones((5, 5), np.uint8)
+    thr = cv2.morphologyEx(thr, cv2.MORPH_OPEN, kernel)
+    thr = cv2.morphologyEx(thr, cv2.MORPH_CLOSE, kernel)
 
-    # Find contours (holes should be filled white blobs now)
+    # Find contours
     contours, _ = cv2.findContours(thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     holes = []
@@ -45,8 +60,7 @@ def measure_holes(frame_bgr, min_d_mm=2, max_d_mm=100, circularity_thresh=0.7):
         peri = cv2.arcLength(cnt, True)
         if peri <= 0:
             continue
-
-        circularity = 4.0 * np.pi * area / (peri * peri)
+        circularity = 4 * np.pi * area / (peri * peri)
         if circularity < circularity_thresh:
             continue
 
@@ -54,16 +68,15 @@ def measure_holes(frame_bgr, min_d_mm=2, max_d_mm=100, circularity_thresh=0.7):
         if r < min_r_px or r > max_r_px:
             continue
 
-        diameter_px = 2.0 * r
+        diameter_px = 2 * r
         diameter_mm = diameter_px / PIXELS_PER_MM
         holes.append(Hole(cx=float(x), cy=float(y), diameter_mm=diameter_mm, diameter_px=diameter_px))
 
-        # Draw annotation
+        # Draw circle + label
         cv2.circle(img, (int(x), int(y)), int(r), (0, 255, 0), 2)
-        label = f"{diameter_mm:.2f} mm"
-        cv2.putText(img, label, (int(x - r), int(y - r) - 6),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (30, 220, 30), 2, cv2.LINE_AA)
+        cv2.putText(img, f"{diameter_mm:.2f} mm", (int(x - r), int(y - r) - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (30, 220, 30), 2, cv2.LINE_AA)
 
-    # Sort by x,y for stable ordering
     holes.sort(key=lambda h: (h.cy, h.cx))
     return holes, img
+

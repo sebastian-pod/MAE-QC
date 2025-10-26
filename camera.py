@@ -1,4 +1,5 @@
 # camera.py
+
 import time
 import logging
 import threading
@@ -8,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 class _PiCam2Wrapper:
     """Picamera2 wrapper; returns frames as BGR for OpenCV. No libcamera.Transform needed."""
-    def __init__(self, width=1280, height=720, fps=30):
+    def __init__(self, width=1920, height=1080, fps=30):
         from picamera2 import Picamera2  # no libcamera import
 
         self.picam2 = Picamera2()
@@ -37,6 +38,19 @@ class _PiCam2Wrapper:
             self.picam2.stop()
         except Exception:
             pass
+
+    def set_focus(self, pos):
+        """
+        Set manual focus if supported. 
+        pos = focus value, e.g., 0-100 or sensor units.
+        """
+        try:
+            # Turn off autofocus
+            self.picam2.set_controls({"AfMode": 0})
+            # Set absolute focus (scale may need adjustment)
+            self.picam2.set_controls({"FocusAbsolute": int(pos*100)})  
+        except Exception as e:
+            logging.warning(f"Focus not supported: {e}")
 
 
 class _OpenCVCamWrapper:
